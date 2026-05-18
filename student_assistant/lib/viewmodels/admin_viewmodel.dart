@@ -8,42 +8,52 @@ class AdminViewModel extends ChangeNotifier {
   List<Application> _filteredApplications = [];
   bool _isLoading = false;
   String? _errorMessage;
-  ApplicationStatus? _currentFilter;  // FIXED: Changed from String to ApplicationStatus
+  ApplicationStatus?
+      _currentFilter; // FIXED: Changed from String to ApplicationStatus
   String _searchQuery = '';
 
   List<Application> get allApplications => _allApplications;
   List<Application> get filteredApplications => _filteredApplications;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  ApplicationStatus? get currentFilter => _currentFilter;  // FIXED: Changed return type
+  ApplicationStatus? get currentFilter =>
+      _currentFilter; // FIXED: Changed return type
   String get searchQuery => _searchQuery;
 
   int get totalApplications => _allApplications.length;
-  int get pendingApplications => _allApplications.where((app) => app.status == ApplicationStatus.pending).length;  // FIXED
-  int get approvedApplications => _allApplications.where((app) => app.status == ApplicationStatus.approved).length;  // FIXED
-  int get rejectedApplications => _allApplications.where((app) => app.status == ApplicationStatus.rejected).length;  // FIXED
+  int get pendingApplications => _allApplications
+      .where((app) => app.status == ApplicationStatus.pending)
+      .length; // FIXED
+  int get approvedApplications => _allApplications
+      .where((app) => app.status == ApplicationStatus.approved)
+      .length; // FIXED
+  int get rejectedApplications => _allApplications
+      .where((app) => app.status == ApplicationStatus.rejected)
+      .length; // FIXED
 
   void applyFilters() {
     List<Application> result = [..._allApplications];
-    
+
     if (_currentFilter != null) {
-      result = result.where((app) => app.status == _currentFilter).toList();  // FIXED
+      result =
+          result.where((app) => app.status == _currentFilter).toList(); // FIXED
     }
-    
+
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       result = result.where((app) {
         return app.studentId.toLowerCase().contains(query) ||
-               app.applicantName?.toLowerCase().contains(query) == true ||
-               app.applicantStudentNumber?.toLowerCase().contains(query) == true;
+            app.applicantName?.toLowerCase().contains(query) == true ||
+            app.applicantStudentNumber?.toLowerCase().contains(query) == true;
       }).toList();
     }
-    
+
     _filteredApplications = result;
     notifyListeners();
   }
 
-  void setFilter(ApplicationStatus? filter) {  // FIXED: Parameter type changed
+  void setFilter(ApplicationStatus? filter) {
+    // FIXED: Parameter type changed
     _currentFilter = filter;
     applyFilters();
   }
@@ -54,7 +64,7 @@ class AdminViewModel extends ChangeNotifier {
   }
 
   void clearFilters() {
-    _currentFilter = null;  // FIXED: Changed from 'all' to null
+    _currentFilter = null; // FIXED: Changed from 'all' to null
     _searchQuery = '';
     applyFilters();
   }
@@ -81,17 +91,17 @@ class AdminViewModel extends ChangeNotifier {
     return _allApplications;
   }
 
-  Future<bool> approveApplication(String applicationId, String adminNotes) async {
+  Future<bool> approveApplication(
+      String applicationId, String adminNotes) async {
     _isLoading = true;
     notifyListeners();
 
     final index = _allApplications.indexWhere((app) => app.id == applicationId);
     if (index != -1) {
       final updatedApp = _allApplications[index].copyWith(
-        status: ApplicationStatus.approved.name,  
-        updatedAt: DateTime.now(), 
-        rejectionReason: ''
-      );
+          status: ApplicationStatus.approved.name,
+          updatedAt: DateTime.now(),
+          rejectionReason: '');
       _allApplications[index] = updatedApp;
       applyFilters();
     }
@@ -101,14 +111,16 @@ class AdminViewModel extends ChangeNotifier {
     return true;
   }
 
-  Future<bool> rejectApplication(String applicationId, String rejectionReason) async {
+  Future<bool> rejectApplication(
+      String applicationId, String rejectionReason) async {
     _isLoading = true;
     notifyListeners();
 
     final index = _allApplications.indexWhere((app) => app.id == applicationId);
     if (index != -1) {
       final updatedApp = _allApplications[index].copyWith(
-        status: ApplicationStatus.rejected.name,  // FIXED: Using enum instead of string
+        status: ApplicationStatus
+            .rejected.name, // FIXED: Using enum instead of string
         rejectionReason: rejectionReason,
         updatedAt: DateTime.now(),
       );

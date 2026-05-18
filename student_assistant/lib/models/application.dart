@@ -34,83 +34,49 @@ class Application {
     this.idDocumentUrl,
     this.matricDocumentUrl,
     this.academicRecordUrl,
-    this.cvUrl,
+    this.cvUrl, required cvDocumentUrl, DateTime? updatedAt,
   });
 
   bool get isPending => status == ApplicationStatus.pending;
 
-  factory Application.fromJson(Map<String, dynamic> json) {
-    final profile = json['profiles'];
+  // In your application.dart model
 
-    return Application(
-      id: json['id']?.toString() ?? '',
-
-      studentId:
-          json['student_id']?.toString() ?? '',
-
-      yearOfStudy:
-          json['year_of_study']?.toString() ?? '',
-
-      status: _parseStatus(
-        json['status'],
-      ),
-
-      createdAt:
-          json['created_at'] != null
-              ? DateTime.tryParse(
-                      json['created_at']
-                          .toString(),
-                    ) ??
-                    DateTime.now()
-              : DateTime.now(),
-
-      modules:
-          (json['modules'] as List? ?? [])
-              .map(
-                (module) =>
-                    ApplicationModule.fromJson(
-                  module
-                      as Map<String, dynamic>,
-                ),
-              )
-              .toList(),
-
-      documentUrl:
-          json['document_url']?.toString(),
-
-      eligibilityConfirmed:
-          json['eligibility_confirmed'] == true,
-
-      applicantName:
-          profile is Map
-              ? profile['full_name']
-                  ?.toString()
-              : null,
-
-      applicantStudentNumber:
-          profile is Map
-              ? profile['student_number']
-                  ?.toString()
-              : null,
-              idDocumentUrl:
-          json[
-                  'id_document_url']
-              as String?,
-
-      matricDocumentUrl:
-          json[
-                  'matric_document_url']
-              as String?,
-
-      academicRecordUrl:
-          json[
-                  'academic_record_url']
-              as String?,
-              cvUrl:
-    json['cv_url']
-        as String?,
-    );
+factory Application.fromJson(Map<String, dynamic> json) {
+  // Parse modules from the nested relationship
+  List<ApplicationModule> modules = [];
+  
+  if (json['modules'] != null && json['modules'] is List) {
+    modules = (json['modules'] as List).map((moduleJson) {
+      return ApplicationModule(
+        academicLevel: moduleJson['academic_level'] ?? '',
+        moduleName: moduleJson['module_name'] ?? '',
+      );
+    }).toList();
   }
+  
+  // Also handle if modules are in a different format
+  if (modules.isEmpty && json['modules'] != null && json['modules'] is Map) {
+    // Handle if modules is an object
+  }
+
+  return Application(
+    id: json['id'].toString(),
+    studentId: json['student_id'].toString(),
+    yearOfStudy: json['year_of_study'] ?? '',
+    status: _parseStatus(json['status']),
+    eligibilityConfirmed: json['eligibility_confirmed'] ?? false,
+    idDocumentUrl: json['id_document_url'],
+    matricDocumentUrl: json['matric_document_url'],
+    academicRecordUrl: json['academic_record_url'],
+    cvDocumentUrl: json['cv_document_url'],
+    modules: modules,
+    createdAt: DateTime.parse(json['created_at']),
+    updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
+    // Get profile info from nested profiles if available
+    applicantName: json['profiles'] != null ? json['profiles']['full_name'] : null,
+    applicantStudentNumber: json['profiles'] != null ? json['profiles']['user_number'] : null,
+  );
+}
 
   static ApplicationStatus _parseStatus(
     dynamic value,

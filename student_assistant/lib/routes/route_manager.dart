@@ -7,7 +7,7 @@ import '../views/student/student_home_screen.dart';
 
 class RouteManager {
   static const String login = '/login';
-  static const String studentHome = '/student-home';
+  static const String studentHome = '/student/home';
   static const String adminDashboard = '/admin-dashboard';
   static const String applicationForm = '/application-form';
 

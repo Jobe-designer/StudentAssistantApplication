@@ -24,36 +24,36 @@ class ApplicationViewModel extends ChangeNotifier {
       )
       ''';
 
-  // FETCH USER APPLICATIONS
-  Future<void> fetchUserApplications() async {
-    _setLoading(true);
+// FETCH USER APPLICATIONS - FIXED
+Future<void> fetchUserApplications() async {
+  _setLoading(true);
 
-    try {
-      final userId = _supabase.auth.currentUser!.id;
+  try {
+    final userId = _supabase.auth.currentUser!.id;
 
-      final data = await _supabase
-          .from('applications')
-          .select(_applicationSelect)
-          .eq('student_id', userId)
-          .order(
-            'created_at',
-            ascending: false,
-          );
+    final data = await _supabase
+        .from('applications')
+        .select('''
+          *,
+          modules:application_modules(*)
+        ''')
+        .eq('student_id', userId)
+        .order('created_at', ascending: false);
 
-      _applications = (data as List)
-          .map(
-            (item) => Application.fromJson(
-              item as Map<String, dynamic>,
-            ),
-          )
-          .toList();
-    } catch (error) {
-      debugPrint('Error fetching applications: $error');
-      rethrow;
-    } finally {
-      _setLoading(false);
-    }
+    debugPrint('Fetched applications: ${data.length}');
+    
+    _applications = (data as List).map((item) {
+      debugPrint('Processing app: ${item['id']}, modules: ${item['modules']}');
+      return Application.fromJson(item as Map<String, dynamic>);
+    }).toList();
+
+  } catch (error) {
+    debugPrint('Error fetching applications: $error');
+    rethrow;
+  } finally {
+    _setLoading(false);
   }
+}
 
   // FETCH ALL APPLICATIONS
   Future<void> fetchAllApplications({
@@ -85,62 +85,83 @@ class ApplicationViewModel extends ChangeNotifier {
     }
   }
 
-  // SUBMIT APPLICATION
-  Future<void> submitApplication({
-    required String yearOfStudy,
-    required List<ApplicationModule> modules,
-    required bool eligibilityConfirmed,
-    required PickedDocument idDocument,
-    required PickedDocument matricDocument,
-    required PickedDocument academicRecord,
-    required PickedDocument cvDocument,
-  }) async {
-    _validateApplication(modules, eligibilityConfirmed);
+  // SUBMIT APPLICATION - FIXED MODULES
+Future<void> submitApplication({
+  required String yearOfStudy,
+  required List<ApplicationModule> modules,
+  required bool eligibilityConfirmed,
+  required PickedDocument idDocument,
+  required PickedDocument matricDocument,
+  required PickedDocument academicRecord,
+  required PickedDocument cvDocument,
+}) async {
+  _validateApplication(modules, eligibilityConfirmed);
 
-    _setLoading(true);
+  _setLoading(true);
 
-    try {
-      final userId = _supabase.auth.currentUser!.id;
+  try {
+    final userId = _supabase.auth.currentUser!.id;
 
-      final existing = await _supabase
-          .from('applications')
-          .select('id')
-          .eq('student_id', userId)
-          .maybeSingle();
+    // Check for existing application
+    final existing = await _supabase
+        .from('applications')
+        .select('id')
+        .eq('student_id', userId)
+        .maybeSingle();
 
-      if (existing != null) {
-        throw Exception('You have already submitted an application.');
-      }
-
-      // UPLOAD DOCUMENTS
-      final idUrl = await _uploadDocument(userId, idDocument, 'id_copy');
-      final matricUrl = await _uploadDocument(userId, matricDocument, 'matric_results');
-      final academicUrl = await _uploadDocument(userId, academicRecord, 'academic_record');
-
-      // INSERT APPLICATION
-      final appData = await _supabase.from('applications').insert({
-        'student_id': userId,
-        'year_of_study': yearOfStudy,
-        'status': ApplicationStatus.pending.name,
-        'eligibility_confirmed': eligibilityConfirmed,
-        'id_document_url': idUrl,
-        'matric_document_url': matricUrl,
-        'academic_record_url': academicUrl,
-      }).select('id').single();
-
-      final applicationId = appData['id'] as String;
-
-      // INSERT MODULES
-      await _supabase.from('application_modules').insert(
-        modules.map((module) => module.toInsertJson(applicationId)).toList(),
-      );
-
-      await fetchUserApplications();
-    } finally {
-      _setLoading(false);
+    if (existing != null) {
+      throw Exception('You have already submitted an application.');
     }
-  }
 
+    // UPLOAD DOCUMENTS
+    final idUrl = await _uploadDocument(userId, idDocument, 'id_copy');
+    final matricUrl = await _uploadDocument(userId, matricDocument, 'matric_results');
+    final academicUrl = await _uploadDocument(userId, academicRecord, 'academic_record');
+    final cvUrl = await _uploadDocument(userId, cvDocument, 'cv');
+
+    // INSERT APPLICATION
+    final appData = await _supabase
+        .from('applications')
+        .insert({
+          'student_id': userId,
+          'year_of_study': yearOfStudy,
+          'status': ApplicationStatus.pending.name,
+          'eligibility_confirmed': eligibilityConfirmed,
+          'id_document_url': idUrl,
+          'matric_document_url': matricUrl,
+          'academic_record_url': academicUrl,
+          'cv_document_url': cvUrl,
+        })
+        .select('id')
+        .single();
+
+    final applicationId = appData['id'] as String;
+
+    // =============================================
+    // FIXED: INSERT MODULES ONE BY ONE with proper error handling
+    // =============================================
+    for (var module in modules) {
+      final moduleData = {
+        'application_id': applicationId,
+        'academic_level': module.academicLevel,
+        'module_name': module.moduleName,
+      };
+      
+      debugPrint('Inserting module: $moduleData');
+      
+      await _supabase.from('application_modules').insert(moduleData);
+    }
+
+    debugPrint('✅ Application submitted successfully with ${modules.length} modules');
+    await fetchUserApplications();
+
+  } catch (error) {
+    debugPrint('❌ Submit error: $error');
+    rethrow;
+  } finally {
+    _setLoading(false);
+  }
+}
   // =============================================
   // SUBMIT APPLICATION WITH DOCUMENTS (Wrapper)
   // =============================================

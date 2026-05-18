@@ -157,114 +157,91 @@ class _ApplicationFormScreenState
   }
 
   Future<void> _saveApplication() async {
-    final messenger =
-        ScaffoldMessenger.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  final navigator = Navigator.of(context);
+  final appVM = context.read<ApplicationViewModel>();
 
-    final navigator =
-        Navigator.of(context);
+  if (!_formKey.currentState!.validate()) {
+    return;
+  }
 
-    final appVM =
-        context.read<ApplicationViewModel>();
+  if (!_eligibilityConfirmed) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Please confirm eligibility.')),
+    );
+    return;
+  }
 
-    if (!_formKey.currentState!
-        .validate()) {
+  // Check required documents for new applications
+  if (!widget.isEditing) {
+    if (_idDocument == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Please upload ID document.')));
       return;
     }
-
-    if (!_eligibilityConfirmed) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please confirm eligibility.',
-          ),
-        ),
-      );
-
+    if (_matricDocument == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Please upload Matric Results.')));
       return;
     }
-
-    if (!widget.isEditing &&
-        (_idDocument == null ||
-            _matricDocument ==
-                null ||
-            _academicRecord ==
-                null ||
-                _cvDocument == null)) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please upload all required documents.',
-          ),
-        ),
-      );
-
+    if (_academicRecord == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Please upload Academic Record.')));
       return;
     }
-
-    try {
-      if (widget.isEditing) {
-        await appVM.updateApplication(
-          application:
-              widget.application!,
-          yearOfStudy:
-              _yearOfStudy,
-          modules: _modules,
-          eligibilityConfirmed:
-              _eligibilityConfirmed,
-
-          // OPTIONAL DURING EDIT
-          idDocument:
-              _idDocument,
-          matricDocument:
-              _matricDocument,
-          academicRecord:
-              _academicRecord,
-          cvDocument:
-              _cvDocument,
-        );
-      } else {
-        await appVM.submitApplication(
-          yearOfStudy:
-              _yearOfStudy,
-          modules: _modules,
-          eligibilityConfirmed:
-              _eligibilityConfirmed,
-
-          idDocument:
-              _idDocument!,
-
-          matricDocument:
-              _matricDocument!,
-
-          academicRecord:
-              _academicRecord!,
-             cvDocument:
-    _cvDocument!, 
-        );
-      }
-
-      if (!mounted) return;
-
-      navigator.pop();
-
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.isEditing
-                ? 'Application updated successfully.'
-                : 'Application submitted successfully.',
-          ),
-        ),
-      );
-    } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(
-          content:
-              Text(error.toString()),
-        ),
-      );
+    if (_cvDocument == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Please upload CV.')));
+      return;
     }
   }
+
+  try {
+    if (widget.isEditing) {
+      await appVM.updateApplication(
+        application: widget.application!,
+        yearOfStudy: _yearOfStudy,
+        modules: _modules,
+        eligibilityConfirmed: _eligibilityConfirmed,
+        idDocument: _idDocument,
+        matricDocument: _matricDocument,
+        academicRecord: _academicRecord,
+        cvDocument: _cvDocument,
+      );
+    } else {
+      await appVM.submitApplication(
+        yearOfStudy: _yearOfStudy,
+        modules: _modules,
+        eligibilityConfirmed: _eligibilityConfirmed,
+        idDocument: _idDocument!,
+        matricDocument: _matricDocument!,
+        academicRecord: _academicRecord!,
+        cvDocument: _cvDocument!,
+      );
+    }
+
+    if (!mounted) return;
+
+    // FIXED: Navigate to StudentHomeScreen and clear all previous screens
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.isEditing
+              ? 'Application updated successfully!'
+              : 'Application submitted successfully!',
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // Navigate to Student Home Screen and remove all previous routes
+    navigator.pushNamedAndRemoveUntil(
+      '/student/home',  // Make sure this matches your route name
+      (route) => false,  // This removes all previous routes
+    );
+
+  } catch (error) {
+    messenger.showSnackBar(
+      SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
+    );
+  }
+}
 
   Widget _buildDocumentCard({
     required String title,
