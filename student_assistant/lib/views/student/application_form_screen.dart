@@ -1,394 +1,1059 @@
-// lib/views/student/application_form_screen.dart
-
-import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
-import '../../config/app_theme.dart';
-import '../../models/application_models.dart';
-import '../../utils/validate.dart';
-import '../../viewmodel/application_viewmodel.dart';
-import '../../viewmodel/auth_viewmodel.dart';
-import '../../services/storage_service.dart';
+import 'package:student_assistant/models/application.dart';
+import 'package:student_assistant/viewmodels/application_viewmodel.dart';
 
 class ApplicationFormScreen extends StatefulWidget {
-  final ApplicationModel? application;
-  const ApplicationFormScreen({super.key, this.application});
+  final Application? application;
+
+  const ApplicationFormScreen({
+    super.key,
+    this.application,
+  });
+
+  bool get isEditing => application != null;
 
   @override
-  State<ApplicationFormScreen> createState() => _ApplicationFormScreenState();
+  State<ApplicationFormScreen> createState() =>
+      _ApplicationFormScreenState();
 }
 
-class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
+class _ApplicationFormScreenState
+    extends State<ApplicationFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _firstReasonController = TextEditingController();
-  final _secondReasonController = TextEditingController();
 
-  String? _firstLevel, _firstName;
-  String? _secondLevel, _secondName;
-  bool _hasSecondModule = false;
-  bool _eligibilityConfirmed = false;
+  late String _yearOfStudy;
+  late List<ApplicationModule> _modules;
+  late bool _eligibilityConfirmed;
 
-  // Document URLs
-  String _cvUrl = '';
-  String _academicUrl = '';
-  String _matricUrl = '';
-  String _idUrl = '';
+  // DOCUMENTS
+  PickedDocument? _idDocument;
+  PickedDocument? _matricDocument;
+  PickedDocument? _academicRecord;
+  PickedDocument? _cvDocument;
 
-  bool _isSubmitting = false;
+  final List<String> _years = const [
+    '1st Year',
+    '2nd Year',
+    '3rd Year',
+  ];
 
-  final List<String> _levels = ['Level 1', 'Level 2', 'Level 3', 'Level 4'];
-  final List<String> _modules = [
-    'Programming Fundamentals', 'Database Systems', 'Web Development',
-    'Software Engineering', 'Network Security', 'Mobile App Development',
+  final List<String> _levels = const [
+    '1st Year Module',
+    '2nd Year Module',
+    '3rd Year Module',
   ];
 
   @override
   void initState() {
     super.initState();
-    if (widget.application != null) {
-      _firstLevel = widget.application!.firstModuleLevel;
-      _firstName = widget.application!.firstModuleName;
-      _firstReasonController.text = widget.application!.firstModuleReason;
-      _hasSecondModule = widget.application!.hasSecondModule;
-      _secondLevel = widget.application!.secondModuleLevel;
-      _secondName = widget.application!.secondModuleName;
-      if (widget.application!.secondModuleReason != null) {
-        _secondReasonController.text = widget.application!.secondModuleReason!;
-      }
-      _eligibilityConfirmed = widget.application!.eligibilityConfirmed;
-      _cvUrl = widget.application!.cvUrl ?? '';
-      _academicUrl = widget.application!.academicTranscriptUrl ?? '';
-      _matricUrl = widget.application!.matricResultsUrl ?? '';
-      _idUrl = widget.application!.idDocumentUrl ?? '';
-    }
+
+    final app = widget.application;
+
+    _yearOfStudy =
+        app?.yearOfStudy ?? '1st Year';
+
+    _modules = app?.modules
+            .map(
+              (module) => ApplicationModule(
+                academicLevel:
+                    module.academicLevel,
+                moduleName:
+                    module.moduleName,
+              ),
+            )
+            .toList() ??
+        [
+          const ApplicationModule(
+            academicLevel:
+                '1st Year Module',
+            moduleName: '',
+          ),
+        ];
+
+    _eligibilityConfirmed =
+        app?.eligibilityConfirmed ?? false;
   }
 
-  @override
-  void dispose() {
-    _firstReasonController.dispose();
-    _secondReasonController.dispose();
-    super.dispose();
-  }
+  void _addModule() {
+    if (_modules.length >= 2) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Only two modules are allowed.',
+          ),
+        ),
+      );
 
-  Future<void> _pickFile(String type, String documentType) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
-    );
-    
-    if (result == null) return;
-    
-    final pickedFile = result.files.single;
-    if (pickedFile.path == null) return;
-    
-    final file = File(pickedFile.path!);
-    final authVM = context.read<AuthViewModel>();
-    final storageService = StorageService();
-    
-    // Show uploading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Uploading...'), backgroundColor: Colors.orange),
-    );
-    
-    String? fileUrl = await storageService.uploadDocument(
-      authVM.currentUserId!, 
-      documentType, 
-      file
-    );
-    
-    if (fileUrl != null && mounted) {
-      setState(() {
-        if (type == 'CV') _cvUrl = fileUrl;
-        else if (type == 'Academic Transcript') _academicUrl = fileUrl;
-        else if (type == 'Matric Results') _matricUrl = fileUrl;
-        else _idUrl = fileUrl;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$type uploaded!'), backgroundColor: AppTheme.success),
-      );
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Upload failed'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fix errors above'), backgroundColor: Colors.red),
-      );
       return;
     }
 
-    final moduleError = AppValidators.validateModulesAreDifferent(
-      _firstName!,
-      _secondName,
-      _hasSecondModule,
-    );
-    if (moduleError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(moduleError), backgroundColor: Colors.red),
+    setState(() {
+      _modules.add(
+        const ApplicationModule(
+          academicLevel:
+              '1st Year Module',
+          moduleName: '',
+        ),
       );
+    });
+  }
+
+  void _removeModule(int index) {
+    if (_modules.length == 1) return;
+
+    setState(() {
+      _modules.removeAt(index);
+    });
+  }
+
+  Future<void> _pickFile(
+    String documentType,
+  ) async {
+    final result =
+        await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true,
+    );
+
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+
+    if (file == null || bytes == null) {
+      return;
+    }
+
+    final pickedDocument =
+        PickedDocument(
+      fileName: file.name,
+      bytes: bytes,
+    );
+
+    setState(() {
+      switch (documentType) {
+        case 'id':
+          _idDocument =
+              pickedDocument;
+          break;
+
+        case 'matric':
+          _matricDocument =
+              pickedDocument;
+          break;
+
+        case 'academic':
+          _academicRecord =
+              pickedDocument;
+          break;
+          case 'cv':
+  _cvDocument =
+      pickedDocument;
+  break;
+      }
+    });
+  }
+
+  Future<void> _saveApplication() async {
+    final messenger =
+        ScaffoldMessenger.of(context);
+
+    final navigator =
+        Navigator.of(context);
+
+    final appVM =
+        context.read<ApplicationViewModel>();
+
+    if (!_formKey.currentState!
+        .validate()) {
       return;
     }
 
     if (!_eligibilityConfirmed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must confirm eligibility'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    final authVM = context.read<AuthViewModel>();
-    final appVM = context.read<ApplicationViewModel>();
-    
-    if (authVM.currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in again'), backgroundColor: Colors.red),
-      );
-      setState(() => _isSubmitting = false);
-      return;
-    }
-
-    final application = ApplicationModel(
-      id: widget.application?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      userId: authVM.currentUserId!,
-      studentNumber: authVM.currentStudentNumber,
-      fullName: authVM.currentStudentName,
-      email: authVM.currentUserEmail!,
-      yearOfStudy: authVM.currentYearOfStudy,
-      firstModuleLevel: _firstLevel!,
-      firstModuleName: _firstName!,
-      firstModuleReason: _firstReasonController.text,
-      hasSecondModule: _hasSecondModule,
-      secondModuleLevel: _hasSecondModule ? _secondLevel : null,
-      secondModuleName: _hasSecondModule ? _secondName : null,
-      secondModuleReason: _hasSecondModule ? _secondReasonController.text : null,
-      cvUrl: _cvUrl.isNotEmpty ? _cvUrl : null,
-      academicTranscriptUrl: _academicUrl.isNotEmpty ? _academicUrl : null,
-      matricResultsUrl: _matricUrl.isNotEmpty ? _matricUrl : null,
-      idDocumentUrl: _idUrl.isNotEmpty ? _idUrl : null,
-      eligibilityConfirmed: _eligibilityConfirmed,
-      status: 'pending',
-      rejectionReason: null,
-      createdAt: widget.application?.createdAt ?? DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    bool success;
-    if (widget.application != null) {
-      success = await appVM.updateApplication(application);
-    } else {
-      if (appVM.hasPendingApplication) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You already have a pending application'), backgroundColor: Colors.red),
-        );
-        setState(() => _isSubmitting = false);
-        return;
-      }
-      success = await appVM.submitApplication(application);
-    }
-
-    setState(() => _isSubmitting = false);
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(widget.application != null ? 'Application updated!' : 'Application submitted!'),
-          backgroundColor: AppTheme.success,
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please confirm eligibility.',
+          ),
         ),
       );
-      Navigator.pop(context, true);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(appVM.errorMessage ?? 'Submission failed'), backgroundColor: Colors.red),
+
+      return;
+    }
+
+    if (!widget.isEditing &&
+        (_idDocument == null ||
+            _matricDocument ==
+                null ||
+            _academicRecord ==
+                null ||
+                _cvDocument == null)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please upload all required documents.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    try {
+      if (widget.isEditing) {
+        await appVM.updateApplication(
+          application:
+              widget.application!,
+          yearOfStudy:
+              _yearOfStudy,
+          modules: _modules,
+          eligibilityConfirmed:
+              _eligibilityConfirmed,
+
+          // OPTIONAL DURING EDIT
+          idDocument:
+              _idDocument,
+          matricDocument:
+              _matricDocument,
+          academicRecord:
+              _academicRecord,
+          cvDocument:
+              _cvDocument,
+        );
+      } else {
+        await appVM.submitApplication(
+          yearOfStudy:
+              _yearOfStudy,
+          modules: _modules,
+          eligibilityConfirmed:
+              _eligibilityConfirmed,
+
+          idDocument:
+              _idDocument!,
+
+          matricDocument:
+              _matricDocument!,
+
+          academicRecord:
+              _academicRecord!,
+             cvDocument:
+    _cvDocument!, 
+        );
+      }
+
+      if (!mounted) return;
+
+      navigator.pop();
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEditing
+                ? 'Application updated successfully.'
+                : 'Application submitted successfully.',
+          ),
+        ),
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content:
+              Text(error.toString()),
+        ),
       );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final authVM = context.watch<AuthViewModel>();
-    
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.application != null ? 'Edit Application' : 'New Application'),
-        backgroundColor: AppTheme.primary,
-        foregroundColor: Colors.white,
+  Widget _buildDocumentCard({
+    required String title,
+    required IconData icon,
+    required PickedDocument? document,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      padding:
+          const EdgeInsets.all(20),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+
+        borderRadius:
+            BorderRadius.circular(
+          20,
+        ),
       ),
-      body: Stack(
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Student Info Card
-                  Card(
-                    color: AppTheme.cardColor,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Student Information', style: TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          Text('Name: ${authVM.currentStudentName}'),
-                          Text('Student Number: ${authVM.currentStudentNumber}'),
-                          Text('Year of Study: ${authVM.currentYearOfStudy}'),
-                        ],
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets
+                        .all(14),
+
+                decoration:
+                    BoxDecoration(
+                  color: Colors
+                      .indigo
+                      .shade50,
+
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    14,
+                  ),
+                ),
+
+                child: Icon(
+                  icon,
+                  color:
+                      Colors.indigo,
+                ),
+              ),
+
+              const SizedBox(
+                  width: 16),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+
+                  children: [
+                    Text(
+                      title,
+
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight
+                                .bold,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // First Module Section
-                  _buildSectionHeader('First Module', required: true),
-                  const SizedBox(height: 16),
-                  
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Module Level *', border: OutlineInputBorder()),
-                    value: _firstLevel,
-                    items: _levels.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                    onChanged: (v) => setState(() => _firstLevel = v),
-                    validator: (v) => AppValidators.validateModuleLevel(v),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Module Name *', border: OutlineInputBorder()),
-                    value: _firstName,
-                    items: _modules.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                    onChanged: (v) => setState(() => _firstName = v),
-                    validator: (v) => AppValidators.validateModuleName(v, 'first'),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  TextFormField(
-                    controller: _firstReasonController,
-                    decoration: const InputDecoration(labelText: 'Reason *', border: OutlineInputBorder()),
-                    maxLines: 4,
-                    validator: (v) => AppValidators.validateModuleReason(v, _firstName ?? 'module'),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Second Module (Optional)
-                  _buildSectionHeader('Second Module (Optional)'),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: SwitchListTile(
-                      title: const Text('Apply for a second module'),
-                      subtitle: const Text('Maximum of two modules per student'),
-                      value: _hasSecondModule,
-                      onChanged: (v) => setState(() => _hasSecondModule = v),
-                      activeColor: AppTheme.accent,
-                    ),
-                  ),
-                  
-                  if (_hasSecondModule) ...[
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Second Module Level', border: OutlineInputBorder()),
-                      value: _secondLevel,
-                      items: _levels.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (v) => setState(() => _secondLevel = v),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Second Module Name', border: OutlineInputBorder()),
-                      value: _secondName,
-                      items: _modules.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (v) => setState(() => _secondName = v),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _secondReasonController,
-                      decoration: const InputDecoration(labelText: 'Reason', border: OutlineInputBorder()),
-                      maxLines: 3,
+
+                    const SizedBox(
+                        height: 4),
+
+                    Text(
+                      document
+                              ?.fileName ??
+                          'No document selected',
                     ),
                   ],
-                  const SizedBox(height: 24),
-                  
-                  // Documents Section
-                  _buildSectionHeader('Supporting Documents', required: true),
-                  const SizedBox(height: 16),
-                  _buildUploadButton('CV / Resume', _cvUrl, () => _pickFile('CV', 'cv')),
-                  const SizedBox(height: 12),
-                  _buildUploadButton('Academic Transcript', _academicUrl, () => _pickFile('Academic Transcript', 'academic_transcript')),
-                  const SizedBox(height: 12),
-                  _buildUploadButton('Matric Results', _matricUrl, () => _pickFile('Matric Results', 'matric_results')),
-                  const SizedBox(height: 12),
-                  _buildUploadButton('ID Document', _idUrl, () => _pickFile('ID Document', 'id_document')),
-                  const SizedBox(height: 24),
-                  
-                  // Eligibility
-                  _buildSectionHeader('Eligibility Confirmation', required: true),
-                  const SizedBox(height: 8),
-                  Card(
-                    color: _eligibilityConfirmed ? AppTheme.success.withValues(alpha: 0.1) : null,
-                    child: CheckboxListTile(
-                      title: const Text('I confirm that I meet the eligibility requirements'),
-                      subtitle: const Text('Good academic standing, no disciplinary issues, availability required'),
-                      value: _eligibilityConfirmed,
-                      onChanged: (v) => setState(() => _eligibilityConfirmed = v ?? false),
-                      activeColor: AppTheme.accent,
-                    ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+
+            child:
+                ElevatedButton.icon(
+              onPressed:
+                  onPressed,
+
+              style:
+                  ElevatedButton
+                      .styleFrom(
+                backgroundColor:
+                    Colors.indigo,
+
+                foregroundColor:
+                    Colors.white,
+
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  vertical: 15,
+                ),
+
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    14,
                   ),
-                  const SizedBox(height: 32),
-                  
-                  // Submit Button
-                  ElevatedButton(
-                    onPressed: _isSubmitting ? null : _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.accent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _isSubmitting
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(widget.application != null ? 'UPDATE APPLICATION' : 'SUBMIT APPLICATION'),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                ),
+              ),
+
+              icon: const Icon(
+                Icons.upload,
+              ),
+
+              label: Text(
+                'Upload $title',
               ),
             ),
           ),
-          if (_isSubmitting)
-            Container(
-              color: Colors.black.withValues(alpha: 0.5),
-              child: const Center(child: CircularProgressIndicator()),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, {bool required = false}) {
-    return Row(
-      children: [
-        Container(width: 4, height: 24, color: AppTheme.accent),
-        const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        if (required) const Text(' *', style: TextStyle(color: Colors.red)),
-      ],
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final appVM =
+        context.watch<ApplicationViewModel>();
 
-  Widget _buildUploadButton(String title, String fileUrl, VoidCallback onPressed) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.upload_file),
-      label: Text(fileUrl.isNotEmpty ? '✓ $title uploaded' : 'Upload $title'),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
-        side: BorderSide(color: fileUrl.isNotEmpty ? AppTheme.success : Colors.grey),
-        foregroundColor: fileUrl.isNotEmpty ? AppTheme.success : null,
+    return Scaffold(
+      backgroundColor:
+          const Color(0xFFF5F7FA),
+
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor:
+            Colors.white,
+        foregroundColor:
+            Colors.black,
+
+        title: Text(
+          widget.isEditing
+              ? 'Edit Application'
+              : 'Submit Application',
+
+          style: const TextStyle(
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body: SingleChildScrollView(
+        padding:
+            const EdgeInsets.all(22),
+
+        child: Form(
+          key: _formKey,
+
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+
+            children: [
+              // HEADER
+              Container(
+                width:
+                    double.infinity,
+
+                padding:
+                    const EdgeInsets
+                        .all(24),
+
+                decoration:
+                    BoxDecoration(
+                  gradient:
+                      const LinearGradient(
+                    colors: [
+                      Colors.indigo,
+                      Colors.blue,
+                    ],
+                  ),
+
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    24,
+                  ),
+                ),
+
+                child:
+                    const Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+
+                  children: [
+                    Icon(
+                      Icons.school,
+                      color:
+                          Colors.white,
+                      size: 42,
+                    ),
+
+                    SizedBox(
+                        height: 16),
+
+                    Text(
+                      'Student Assistant Application',
+
+                      style:
+                          TextStyle(
+                        fontSize: 28,
+                        fontWeight:
+                            FontWeight
+                                .bold,
+                        color: Colors
+                            .white,
+                      ),
+                    ),
+
+                    SizedBox(
+                        height: 10),
+
+                    Text(
+                      'Apply for one or two modules only.',
+
+                      style:
+                          TextStyle(
+                        color: Colors
+                            .white70,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(
+                  height: 24),
+
+              // ACADEMIC INFO
+              Container(
+                padding:
+                    const EdgeInsets
+                        .all(20),
+
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.white,
+
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    20,
+                  ),
+                ),
+
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons
+                              .person_outline,
+                          color: Colors
+                              .indigo,
+                        ),
+
+                        SizedBox(
+                            width:
+                                10),
+
+                        Text(
+                          'Academic Information',
+
+                          style:
+                              TextStyle(
+                            fontSize:
+                                20,
+                            fontWeight:
+                                FontWeight
+                                    .bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                        height: 20),
+
+                    DropdownButtonFormField<
+                        String>(
+                      value:
+                          _yearOfStudy,
+
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Current Year of Study',
+
+                        prefixIcon:
+                            Icon(
+                          Icons.school,
+                        ),
+                      ),
+
+                      items: _years
+                          .map(
+                            (year) =>
+                                DropdownMenuItem(
+                              value:
+                                  year,
+                              child: Text(
+                                  year),
+                            ),
+                          )
+                          .toList(),
+
+                      onChanged:
+                          (value) {
+                        setState(() {
+                          _yearOfStudy =
+                              value!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(
+                  height: 24),
+
+              // MODULE TITLE
+              const Row(
+                children: [
+                  Icon(
+                    Icons.menu_book,
+                    color:
+                        Colors.indigo,
+                  ),
+
+                  SizedBox(width: 10),
+
+                  Text(
+                    'Module Information',
+
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(
+                  height: 18),
+
+              // MODULES
+              ..._modules
+                  .asMap()
+                  .entries
+                  .map((entry) {
+                final index =
+                    entry.key;
+
+                final module =
+                    entry.value;
+
+                return Container(
+                  margin:
+                      const EdgeInsets
+                          .only(
+                    bottom: 18,
+                  ),
+
+                  padding:
+                      const EdgeInsets
+                          .all(20),
+
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.white,
+
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      20,
+                    ),
+
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors
+                            .black12,
+                        blurRadius:
+                            6,
+                        offset:
+                            Offset(
+                                0,
+                                2),
+                      ),
+                    ],
+                  ),
+
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Module ${index + 1}',
+
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                              fontSize:
+                                  18,
+                            ),
+                          ),
+
+                          const Spacer(),
+
+                          if (_modules
+                                  .length >
+                              1)
+                            IconButton(
+                              tooltip:
+                                  'Remove module',
+
+                              onPressed:
+                                  () =>
+                                      _removeModule(
+                                index,
+                              ),
+
+                              icon:
+                                  const Icon(
+                                Icons
+                                    .delete_outline,
+                                color:
+                                    Colors
+                                        .red,
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(
+                          height: 18),
+
+                      DropdownButtonFormField<
+                          String>(
+                        value: module
+                            .academicLevel,
+
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Academic Level',
+
+                          prefixIcon:
+                              Icon(
+                            Icons
+                                .layers,
+                          ),
+                        ),
+
+                        items: _levels
+                            .map(
+                              (level) =>
+                                  DropdownMenuItem(
+                                value:
+                                    level,
+                                child:
+                                    Text(
+                                  level,
+                                ),
+                              ),
+                            )
+                            .toList(),
+
+                        onChanged:
+                            (value) {
+                          setState(() {
+                            _modules[index] =
+                                ApplicationModule(
+                              academicLevel:
+                                  value!,
+                              moduleName:
+                                  module
+                                      .moduleName,
+                            );
+                          });
+                        },
+                      ),
+
+                      const SizedBox(
+                          height: 18),
+
+                      TextFormField(
+                        controller:
+                            TextEditingController(
+                          text: module
+                              .moduleName,
+                        ),
+
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Module Name / Code',
+
+                          hintText:
+                              'TPG316C',
+
+                          prefixIcon:
+                              Icon(
+                            Icons
+                                .book_outlined,
+                          ),
+                        ),
+
+                        validator:
+                            (value) {
+                          if (value ==
+                                  null ||
+                              value
+                                  .trim()
+                                  .isEmpty) {
+                            return 'Enter module name or code';
+                          }
+
+                          return null;
+                        },
+
+                        onChanged:
+                            (value) {
+                          _modules[index] =
+                              ApplicationModule(
+                            academicLevel:
+                                _modules[index]
+                                    .academicLevel,
+
+                            moduleName:
+                                value
+                                    .trim(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+              if (_modules.length < 2)
+                OutlinedButton.icon(
+                  onPressed:
+                      _addModule,
+
+                  icon:
+                      const Icon(
+                    Icons.add,
+                  ),
+
+                  label:
+                      const Text(
+                    'Add Second Module',
+                  ),
+                ),
+
+              const SizedBox(
+                  height: 24),
+
+              // ELIGIBILITY
+              Container(
+                padding:
+                    const EdgeInsets
+                        .all(20),
+
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.white,
+
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    20,
+                  ),
+                ),
+
+                child:
+                    CheckboxListTile(
+                  value:
+                      _eligibilityConfirmed,
+
+                  onChanged:
+                      (value) {
+                    setState(() {
+                      _eligibilityConfirmed =
+                          value ??
+                              false;
+                    });
+                  },
+
+                  title:
+                      const Text(
+                    'I confirm that I meet the minimum requirements.',
+                  ),
+
+                  subtitle:
+                      const Text(
+                    'Final decisions remain with administrative users.',
+                  ),
+
+                  controlAffinity:
+                      ListTileControlAffinity
+                          .leading,
+
+                  contentPadding:
+                      EdgeInsets.zero,
+                ),
+              ),
+
+              const SizedBox(
+                  height: 24),
+
+              // DOCUMENTS
+              _buildDocumentCard(
+                title: 'ID Copy',
+                icon: Icons
+                    .badge_outlined,
+                document:
+                    _idDocument,
+                onPressed: () =>
+                    _pickFile(
+                        'id'),
+              ),
+
+              const SizedBox(
+                  height: 18),
+
+              _buildDocumentCard(
+                title:
+                    'Matric Results',
+                icon: Icons
+                    .school_outlined,
+                document:
+                    _matricDocument,
+                onPressed: () =>
+                    _pickFile(
+                        'matric'),
+              ),
+
+              const SizedBox(
+                  height: 18),
+
+              _buildDocumentCard(
+                title:
+                    'Academic Record',
+                icon: Icons
+                    .menu_book_outlined,
+                document:
+                    _academicRecord,
+                onPressed: () =>
+                    _pickFile(
+                        'academic'),
+              ),
+              const SizedBox(
+    height: 18),
+
+_buildDocumentCard(
+  title: 'Curriculum Vitae (CV)',
+
+  icon:
+      Icons.description_outlined,
+
+  document:
+      _cvDocument,
+
+  onPressed: () =>
+      _pickFile('cv'),
+),
+
+              const SizedBox(
+                  height: 30),
+
+              // SUBMIT
+              SizedBox(
+                width:
+                    double.infinity,
+
+                child:
+                    ElevatedButton
+                        .icon(
+                  onPressed:
+                      appVM.isLoading
+                          ? null
+                          : _saveApplication,
+
+                  style:
+                      ElevatedButton
+                          .styleFrom(
+                    backgroundColor:
+                        Colors
+                            .indigo,
+
+                    foregroundColor:
+                        Colors.white,
+
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      vertical:
+                          18,
+                    ),
+
+                    shape:
+                        RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius
+                              .circular(
+                        18,
+                      ),
+                    ),
+                  ),
+
+                  icon: appVM
+                          .isLoading
+                      ? const SizedBox(
+                          width:
+                              18,
+                          height:
+                              18,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth:
+                                2,
+                            color:
+                                Colors
+                                    .white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons
+                              .save,
+                        ),
+
+                  label: Text(
+                    widget
+                            .isEditing
+                        ? 'Save Changes'
+                        : 'Submit Application',
+
+                    style:
+                        const TextStyle(
+                      fontSize:
+                          16,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                  height: 30),
+            ],
+          ),
+        ),
       ),
     );
   }

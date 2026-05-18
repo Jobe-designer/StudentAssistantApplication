@@ -1,14 +1,12 @@
-// lib/views/student/student_home_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:student_assistant/widgets/app_drawer.dart';
 import 'package:provider/provider.dart';
-import '../../config/app_theme.dart';
-import '../../models/application_models.dart';
-import '../../viewmodel/application_viewmodel.dart';
-import '../../viewmodel/auth_viewmodel.dart';
-import 'application_form_screen.dart';
-import 'application_detail_screen.dart';
-import 'profile_screen.dart';
+import 'package:student_assistant/viewmodels/application_viewmodel.dart';
+import 'package:student_assistant/viewmodels/auth_viewmodel.dart';
+import 'package:student_assistant/views/application_detail_screen.dart';
+import 'package:student_assistant/views/student/application_form_screen.dart';
+import 'package:student_assistant/views/edit_profile_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({super.key});
@@ -18,237 +16,357 @@ class StudentHomeScreen extends StatefulWidget {
 }
 
 class _StudentHomeScreenState extends State<StudentHomeScreen> {
-  bool _isLoading = true;
-  bool _isRefreshing = false;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDataOnce());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ApplicationViewModel>().fetchUserApplications();
+    });
   }
 
-  Future<void> _loadDataOnce() async {
-    if (_isRefreshing) return;
-    _isRefreshing = true;
-    
-    final authVM = context.read<AuthViewModel>();
-    if (authVM.currentUserId != null) {
-      await context.read<ApplicationViewModel>().fetchMyApplications(authVM.currentUserId!);
-    }
-    
-    if (mounted) {
-      setState(() {
-        _isRefreshing = false;
-        _isLoading = false;
-      });
-    }
+  Future<void> _refresh() => context.read<ApplicationViewModel>().fetchUserApplications();
+
+  Future<void> _openForm() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const ApplicationFormScreen()));
+    if (mounted) await _refresh();
   }
 
-  Future<void> _refreshData() async {
-    if (_isRefreshing) return;
-    _isRefreshing = true;
-    
-    final authVM = context.read<AuthViewModel>();
-    if (authVM.currentUserId != null) {
-      await context.read<ApplicationViewModel>().fetchMyApplications(authVM.currentUserId!);
+  Future<void> _openDetails(application) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => ApplicationDetailScreen(application: application)));
+    if (mounted) await _refresh();
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+
+      case 'rejected':
+        return Colors.red;
+
+      default:
+        return Colors.orange;
     }
-    
-    if (mounted) setState(() => _isRefreshing = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final appVM = context.watch<ApplicationViewModel>();
-
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final authVM = context.watch<AuthViewModel>();
+    final profile = authVM.profile;
 
     return Scaffold(
-      backgroundColor: AppTheme.primaryDark,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(100),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppTheme.primary, AppTheme.primaryDark],
-            ),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
+      backgroundColor: const Color(0xFFF5F7FA),
+       drawer: AppDrawer(
+  isAdmin: false,
+
+  onNewApplication: _openForm,
+
+  onMyApplications: () {},
+
+  onProfile: () async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          const EditProfileScreen(),
+    ),
+  );
+
+  if (mounted) {
+    await _refresh();
+  }
+},
+),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        leading: Builder(
+  builder: (context) => IconButton(
+    icon: const Icon(Icons.menu),
+    onPressed: () {
+      Scaffold.of(context).openDrawer();
+    },
+  ),
+),
+        title: const Text(
+          'Student Portal',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
           ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        ),
+      ),
+
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Colors.indigo,
+                    Colors.blue,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
               child: Row(
                 children: [
-                  Container(
-                    width: 45,
-                    height: 45,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [AppTheme.accent, AppTheme.accent.withValues(alpha: 0.7)]),
-                      borderRadius: BorderRadius.circular(12),
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white24,
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 30,
                     ),
-                    child: const Icon(Icons.school, color: Colors.white),
                   ),
-                  const SizedBox(width: 12),
+
+                  const SizedBox(width: 16),
+
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Student Portal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                         Text(
-                          'Welcome, ${context.read<AuthViewModel>().currentStudentName}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          profile?.fullName ?? 'Student',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Text(
+                          'User Number: ${profile?.userNumber ?? 'Unknown'}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.person_outline, color: Colors.white),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.logout, color: Colors.white),
-                    onPressed: () async {
-                      await context.read<AuthViewModel>().signOut();
-                    },
-                  ),
                 ],
               ),
             ),
+
+            const SizedBox(height: 28),
+Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    const Text(
+      'My Applications',
+      style: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+
+    const SizedBox(height: 14),
+
+    if (appVM.applications.isEmpty)
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed:
+              appVM.isLoading
+                  ? null
+                  : _openForm,
+
+          style:
+              ElevatedButton.styleFrom(
+            backgroundColor:
+                Colors.indigo,
+            foregroundColor:
+                Colors.white,
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            shape:
+                RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(
+                14,
+              ),
+            ),
+          ),
+
+          icon:
+              const Icon(Icons.add),
+
+          label: const Text(
+            'Apply',
           ),
         ),
       ),
-      body: appVM.applications.isEmpty
-          ? _buildEmptyState()
-          : RefreshIndicator(
-              onRefresh: _refreshData,
-              color: AppTheme.accent,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: appVM.applications.length,
-                itemBuilder: (context, index) => _buildApplicationCard(appVM.applications[index], appVM),
-              ),
-            ),
-      floatingActionButton: appVM.canSubmitApplication
-          ? FloatingActionButton.extended(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context, 
-                  MaterialPageRoute(builder: (_) => const ApplicationFormScreen()),
-                );
-                if (result == true) await _refreshData();
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('New Application'),
-              backgroundColor: AppTheme.accent,
-            )
-          : null,
-    );
-  }
+  ],
+),
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.cardColor,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.assignment_outlined, size: 60, color: AppTheme.accent),
-          ),
-          const SizedBox(height: 24),
-          const Text('No Applications Yet', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text('Tap the + button to submit your first application', style: TextStyle(color: Colors.grey[400])),
-        ],
-      ),
-    );
-  }
+            const SizedBox(height: 16),
 
-  Widget _buildApplicationCard(ApplicationModel app, ApplicationViewModel appVM) {
-    Color statusColor;
-    IconData statusIcon;
-    switch (app.status) {
-      case 'approved':
-        statusColor = AppTheme.success;
-        statusIcon = Icons.check_circle;
-        break;
-      case 'rejected':
-        statusColor = AppTheme.error;
-        statusIcon = Icons.cancel;
-        break;
-      default:
-        statusColor = AppTheme.warning;
-        statusIcon = Icons.pending;
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: app.id))),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+            if (appVM.isLoading)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(
+                  child: CircularProgressIndicator(),
                 ),
-                child: Icon(statusIcon, color: statusColor),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
+              )
+
+            else if (appVM.applications.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(app.firstModuleName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text('${app.firstModuleLevel} • ${app.createdAt.toString().substring(0, 10)}', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                    Icon(
+                      Icons.assignment_outlined,
+                      size: 60,
+                      color: Colors.grey.shade500,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'No applications submitted yet.',
+                      style: TextStyle(
+                        fontSize: 16,
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    ElevatedButton.icon(
+                      onPressed: _openForm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Submit Application'),
+                    ),
                   ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
+              )
+
+            else
+              ...appVM.applications.map(
+                (app) => Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(20),
+
+                    leading: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.assignment,
+                        color: Colors.indigo,
+                      ),
+                    ),
+
+                    title: Text(
+                      'Year of Study: ${app.yearOfStudy}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${app.modules.length} module(s)',
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusColor(
+                                app.status.name,
+                              ).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Text(
+                              app.status.name.toUpperCase(),
+                              style: TextStyle(
+                                color: _statusColor(app.status.name),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                    ),
+
+                    onTap: () => _openDetails(app),
+                  ),
                 ),
-                child: Text(app.status.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
               ),
-              if (app.status == 'pending')
-                PopupMenuButton(
-                  icon: const Icon(Icons.more_vert, color: Colors.grey),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit Application')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: AppTheme.error))),
-                  ],
-                  onSelected: (value) async {
-                    if (value == 'edit') {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => ApplicationFormScreen(application: app)));
-                      await _refreshData();
-                    } else if (value == 'delete') {
-                      await appVM.deleteApplication(app.id);
-                      await _refreshData();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Application deleted'), backgroundColor: AppTheme.error, behavior: SnackBarBehavior.floating),
-                        );
-                      }
-                    }
-                  },
+
+            if (appVM.applications.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                  'Only one Student Assistant application is allowed per student.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey,
+                  ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
