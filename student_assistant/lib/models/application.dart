@@ -133,6 +133,8 @@ class Application {
         return ApplicationStatus.pending;
     }
   }
+
+  copyWith({required String status, required String rejectionReason, required DateTime updatedAt}) {}
 }
 
 class ApplicationModule {
