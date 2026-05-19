@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:student_assistant/models/application.dart';
+import 'package:student_assistant/routes/route_manager.dart';
 import 'package:student_assistant/viewmodels/application_viewmodel.dart';
 
 class ApplicationFormScreen extends StatefulWidget {
@@ -15,12 +16,10 @@ class ApplicationFormScreen extends StatefulWidget {
   bool get isEditing => application != null;
 
   @override
-  State<ApplicationFormScreen> createState() =>
-      _ApplicationFormScreenState();
+  State<ApplicationFormScreen> createState() => _ApplicationFormScreenState();
 }
 
-class _ApplicationFormScreenState
-    extends State<ApplicationFormScreen> {
+class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
   late String _yearOfStudy;
@@ -51,35 +50,29 @@ class _ApplicationFormScreenState
 
     final app = widget.application;
 
-    _yearOfStudy =
-        app?.yearOfStudy ?? '1st Year';
+    _yearOfStudy = app?.yearOfStudy ?? '1st Year';
 
     _modules = app?.modules
             .map(
               (module) => ApplicationModule(
-                academicLevel:
-                    module.academicLevel,
-                moduleName:
-                    module.moduleName,
+                academicLevel: module.academicLevel,
+                moduleName: module.moduleName,
               ),
             )
             .toList() ??
         [
           const ApplicationModule(
-            academicLevel:
-                '1st Year Module',
+            academicLevel: '1st Year Module',
             moduleName: '',
           ),
         ];
 
-    _eligibilityConfirmed =
-        app?.eligibilityConfirmed ?? false;
+    _eligibilityConfirmed = app?.eligibilityConfirmed ?? false;
   }
 
   void _addModule() {
     if (_modules.length >= 2) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Only two modules are allowed.',
@@ -93,8 +86,7 @@ class _ApplicationFormScreenState
     setState(() {
       _modules.add(
         const ApplicationModule(
-          academicLevel:
-              '1st Year Module',
+          academicLevel: '1st Year Module',
           moduleName: '',
         ),
       );
@@ -112,8 +104,7 @@ class _ApplicationFormScreenState
   Future<void> _pickFile(
     String documentType,
   ) async {
-    final result =
-        await FilePicker.platform.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       withData: true,
@@ -126,8 +117,7 @@ class _ApplicationFormScreenState
       return;
     }
 
-    final pickedDocument =
-        PickedDocument(
+    final pickedDocument = PickedDocument(
       fileName: file.name,
       bytes: bytes,
     );
@@ -135,113 +125,111 @@ class _ApplicationFormScreenState
     setState(() {
       switch (documentType) {
         case 'id':
-          _idDocument =
-              pickedDocument;
+          _idDocument = pickedDocument;
           break;
 
         case 'matric':
-          _matricDocument =
-              pickedDocument;
+          _matricDocument = pickedDocument;
           break;
 
         case 'academic':
-          _academicRecord =
-              pickedDocument;
+          _academicRecord = pickedDocument;
           break;
-          case 'cv':
-  _cvDocument =
-      pickedDocument;
-  break;
+        case 'cv':
+          _cvDocument = pickedDocument;
+          break;
       }
     });
   }
 
   Future<void> _saveApplication() async {
-  final messenger = ScaffoldMessenger.of(context);
-  final navigator = Navigator.of(context);
-  final appVM = context.read<ApplicationViewModel>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final appVM = context.read<ApplicationViewModel>();
 
-  if (!_formKey.currentState!.validate()) {
-    return;
-  }
-
-  if (!_eligibilityConfirmed) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Please confirm eligibility.')),
-    );
-    return;
-  }
-
-  // Check required documents for new applications
-  if (!widget.isEditing) {
-    if (_idDocument == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('Please upload ID document.')));
+    if (!_formKey.currentState!.validate()) {
       return;
     }
-    if (_matricDocument == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('Please upload Matric Results.')));
-      return;
-    }
-    if (_academicRecord == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('Please upload Academic Record.')));
-      return;
-    }
-    if (_cvDocument == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('Please upload CV.')));
-      return;
-    }
-  }
 
-  try {
-    if (widget.isEditing) {
-      await appVM.updateApplication(
-        application: widget.application!,
-        yearOfStudy: _yearOfStudy,
-        modules: _modules,
-        eligibilityConfirmed: _eligibilityConfirmed,
-        idDocument: _idDocument,
-        matricDocument: _matricDocument,
-        academicRecord: _academicRecord,
-        cvDocument: _cvDocument,
+    if (!_eligibilityConfirmed) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please confirm eligibility.')),
       );
-    } else {
-      await appVM.submitApplication(
-        yearOfStudy: _yearOfStudy,
-        modules: _modules,
-        eligibilityConfirmed: _eligibilityConfirmed,
-        idDocument: _idDocument!,
-        matricDocument: _matricDocument!,
-        academicRecord: _academicRecord!,
-        cvDocument: _cvDocument!,
-      );
+      return;
     }
 
-    if (!mounted) return;
+    // Check required documents for new applications
+    if (!widget.isEditing) {
+      if (_idDocument == null) {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('Please upload ID document.')));
+        return;
+      }
+      if (_matricDocument == null) {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('Please upload Matric Results.')));
+        return;
+      }
+      if (_academicRecord == null) {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('Please upload Academic Record.')));
+        return;
+      }
+      if (_cvDocument == null) {
+        messenger
+            .showSnackBar(const SnackBar(content: Text('Please upload CV.')));
+        return;
+      }
+    }
 
-    // FIXED: Navigate to StudentHomeScreen and clear all previous screens
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          widget.isEditing
-              ? 'Application updated successfully!'
-              : 'Application submitted successfully!',
+    try {
+      if (widget.isEditing) {
+        await appVM.updateApplication(
+          application: widget.application!,
+          yearOfStudy: _yearOfStudy,
+          modules: _modules,
+          eligibilityConfirmed: _eligibilityConfirmed,
+          idDocument: _idDocument,
+          matricDocument: _matricDocument,
+          academicRecord: _academicRecord,
+          cvDocument: _cvDocument,
+        );
+      } else {
+        await appVM.submitApplication(
+          yearOfStudy: _yearOfStudy,
+          modules: _modules,
+          eligibilityConfirmed: _eligibilityConfirmed,
+          idDocument: _idDocument!,
+          matricDocument: _matricDocument!,
+          academicRecord: _academicRecord!,
+          cvDocument: _cvDocument!,
+        );
+      }
+
+      if (!mounted) return;
+
+      // FIXED: Navigate to StudentHomeScreen and clear all previous screens
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEditing
+                ? 'Application updated successfully!'
+                : 'Application submitted successfully!',
+          ),
+          backgroundColor: Colors.green,
         ),
-        backgroundColor: Colors.green,
-      ),
-    );
+      );
 
-    // Navigate to Student Home Screen and remove all previous routes
-    navigator.pushNamedAndRemoveUntil(
-      '/student/home',  // Make sure this matches your route name
-      (route) => false,  // This removes all previous routes
-    );
-
-  } catch (error) {
-    messenger.showSnackBar(
-      SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
-    );
+      navigator.pushNamedAndRemoveUntil(
+        RouteManager.studentHome, // Use the constant, not a string
+        (route) => false,
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
+      );
+    }
   }
-}
 
   Widget _buildDocumentCard({
     required String title,
@@ -250,124 +238,71 @@ class _ApplicationFormScreenState
     required VoidCallback onPressed,
   }) {
     return Container(
-      padding:
-          const EdgeInsets.all(20),
-
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-
-        borderRadius:
-            BorderRadius.circular(
+        borderRadius: BorderRadius.circular(
           20,
         ),
       ),
-
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets
-                        .all(14),
-
-                decoration:
-                    BoxDecoration(
-                  color: Colors
-                      .indigo
-                      .shade50,
-
-                  borderRadius:
-                      BorderRadius
-                          .circular(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(
                     14,
                   ),
                 ),
-
                 child: Icon(
                   icon,
-                  color:
-                      Colors.indigo,
+                  color: Colors.indigo,
                 ),
               ),
-
-              const SizedBox(
-                  width: 16),
-
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight
-                                .bold,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    const SizedBox(
-                        height: 4),
-
+                    const SizedBox(height: 4),
                     Text(
-                      document
-                              ?.fileName ??
-                          'No document selected',
+                      document?.fileName ?? 'No document selected',
                     ),
                   ],
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 18),
-
           SizedBox(
             width: double.infinity,
-
-            child:
-                ElevatedButton.icon(
-              onPressed:
-                  onPressed,
-
-              style:
-                  ElevatedButton
-                      .styleFrom(
-                backgroundColor:
-                    Colors.indigo,
-
-                foregroundColor:
-                    Colors.white,
-
-                padding:
-                    const EdgeInsets
-                        .symmetric(
+            child: ElevatedButton.icon(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
                   vertical: 15,
                 ),
-
-                shape:
-                    RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius
-                          .circular(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
                     14,
                   ),
                 ),
               ),
-
               icon: const Icon(
                 Icons.upload,
               ),
-
               label: Text(
                 'Upload $title',
               ),
@@ -380,112 +315,65 @@ class _ApplicationFormScreenState
 
   @override
   Widget build(BuildContext context) {
-    final appVM =
-        context.watch<ApplicationViewModel>();
+    final appVM = context.watch<ApplicationViewModel>();
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF5F7FA),
-
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor:
-            Colors.white,
-        foregroundColor:
-            Colors.black,
-
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         title: Text(
-          widget.isEditing
-              ? 'Edit Application'
-              : 'Submit Application',
-
+          widget.isEditing ? 'Edit Application' : 'Submit Application',
           style: const TextStyle(
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
-
       body: SingleChildScrollView(
-        padding:
-            const EdgeInsets.all(22),
-
+        padding: const EdgeInsets.all(22),
         child: Form(
           key: _formKey,
-
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
-
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // HEADER
               Container(
-                width:
-                    double.infinity,
-
-                padding:
-                    const EdgeInsets
-                        .all(24),
-
-                decoration:
-                    BoxDecoration(
-                  gradient:
-                      const LinearGradient(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
                     colors: [
                       Colors.indigo,
                       Colors.blue,
                     ],
                   ),
-
-                  borderRadius:
-                      BorderRadius
-                          .circular(
+                  borderRadius: BorderRadius.circular(
                     24,
                   ),
                 ),
-
-                child:
-                    const Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
                       Icons.school,
-                      color:
-                          Colors.white,
+                      color: Colors.white,
                       size: 42,
                     ),
-
-                    SizedBox(
-                        height: 16),
-
+                    SizedBox(height: 16),
                     Text(
                       'Student Assistant Application',
-
-                      style:
-                          TextStyle(
+                      style: TextStyle(
                         fontSize: 28,
-                        fontWeight:
-                            FontWeight
-                                .bold,
-                        color: Colors
-                            .white,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-
-                    SizedBox(
-                        height: 10),
-
+                    SizedBox(height: 10),
                     Text(
                       'Apply for one or two modules only.',
-
-                      style:
-                          TextStyle(
-                        color: Colors
-                            .white70,
+                      style: TextStyle(
+                        color: Colors.white70,
                         fontSize: 16,
                       ),
                     ),
@@ -493,97 +381,56 @@ class _ApplicationFormScreenState
                 ),
               ),
 
-              const SizedBox(
-                  height: 24),
+              const SizedBox(height: 24),
 
               // ACADEMIC INFO
               Container(
-                padding:
-                    const EdgeInsets
-                        .all(20),
-
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.white,
-
-                  borderRadius:
-                      BorderRadius
-                          .circular(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(
                     20,
                   ),
                 ),
-
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(
                       children: [
                         Icon(
-                          Icons
-                              .person_outline,
-                          color: Colors
-                              .indigo,
+                          Icons.person_outline,
+                          color: Colors.indigo,
                         ),
-
-                        SizedBox(
-                            width:
-                                10),
-
+                        SizedBox(width: 10),
                         Text(
                           'Academic Information',
-
-                          style:
-                              TextStyle(
-                            fontSize:
-                                20,
-                            fontWeight:
-                                FontWeight
-                                    .bold,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
                     ),
-
-                    const SizedBox(
-                        height: 20),
-
-                    DropdownButtonFormField<
-                        String>(
-                      value:
-                          _yearOfStudy,
-
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Current Year of Study',
-
-                        prefixIcon:
-                            Icon(
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: _yearOfStudy,
+                      decoration: const InputDecoration(
+                        labelText: 'Current Year of Study',
+                        prefixIcon: Icon(
                           Icons.school,
                         ),
                       ),
-
                       items: _years
                           .map(
-                            (year) =>
-                                DropdownMenuItem(
-                              value:
-                                  year,
-                              child: Text(
-                                  year),
+                            (year) => DropdownMenuItem(
+                              value: year,
+                              child: Text(year),
                             ),
                           )
                           .toList(),
-
-                      onChanged:
-                          (value) {
+                      onChanged: (value) {
                         setState(() {
-                          _yearOfStudy =
-                              value!;
+                          _yearOfStudy = value!;
                         });
                       },
                     ),
@@ -591,224 +438,128 @@ class _ApplicationFormScreenState
                 ),
               ),
 
-              const SizedBox(
-                  height: 24),
+              const SizedBox(height: 24),
 
               // MODULE TITLE
               const Row(
                 children: [
                   Icon(
                     Icons.menu_book,
-                    color:
-                        Colors.indigo,
+                    color: Colors.indigo,
                   ),
-
                   SizedBox(width: 10),
-
                   Text(
                     'Module Information',
-
                     style: TextStyle(
                       fontSize: 22,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(
-                  height: 18),
+              const SizedBox(height: 18),
 
               // MODULES
-              ..._modules
-                  .asMap()
-                  .entries
-                  .map((entry) {
-                final index =
-                    entry.key;
+              ..._modules.asMap().entries.map((entry) {
+                final index = entry.key;
 
-                final module =
-                    entry.value;
+                final module = entry.value;
 
                 return Container(
-                  margin:
-                      const EdgeInsets
-                          .only(
+                  margin: const EdgeInsets.only(
                     bottom: 18,
                   ),
-
-                  padding:
-                      const EdgeInsets
-                          .all(20),
-
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.white,
-
-                    borderRadius:
-                        BorderRadius
-                            .circular(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(
                       20,
                     ),
-
                     boxShadow: const [
                       BoxShadow(
-                        color: Colors
-                            .black12,
-                        blurRadius:
-                            6,
-                        offset:
-                            Offset(
-                                0,
-                                2),
+                        color: Colors.black12,
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
                       ),
                     ],
                   ),
-
                   child: Column(
                     children: [
                       Row(
                         children: [
                           Text(
                             'Module ${index + 1}',
-
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                              fontSize:
-                                  18,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
                             ),
                           ),
-
                           const Spacer(),
-
-                          if (_modules
-                                  .length >
-                              1)
+                          if (_modules.length > 1)
                             IconButton(
-                              tooltip:
-                                  'Remove module',
-
-                              onPressed:
-                                  () =>
-                                      _removeModule(
+                              tooltip: 'Remove module',
+                              onPressed: () => _removeModule(
                                 index,
                               ),
-
-                              icon:
-                                  const Icon(
-                                Icons
-                                    .delete_outline,
-                                color:
-                                    Colors
-                                        .red,
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
                               ),
                             ),
                         ],
                       ),
-
-                      const SizedBox(
-                          height: 18),
-
-                      DropdownButtonFormField<
-                          String>(
-                        value: module
-                            .academicLevel,
-
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Academic Level',
-
-                          prefixIcon:
-                              Icon(
-                            Icons
-                                .layers,
+                      const SizedBox(height: 18),
+                      DropdownButtonFormField<String>(
+                        value: module.academicLevel,
+                        decoration: const InputDecoration(
+                          labelText: 'Academic Level',
+                          prefixIcon: Icon(
+                            Icons.layers,
                           ),
                         ),
-
                         items: _levels
                             .map(
-                              (level) =>
-                                  DropdownMenuItem(
-                                value:
-                                    level,
-                                child:
-                                    Text(
+                              (level) => DropdownMenuItem(
+                                value: level,
+                                child: Text(
                                   level,
                                 ),
                               ),
                             )
                             .toList(),
-
-                        onChanged:
-                            (value) {
+                        onChanged: (value) {
                           setState(() {
-                            _modules[index] =
-                                ApplicationModule(
-                              academicLevel:
-                                  value!,
-                              moduleName:
-                                  module
-                                      .moduleName,
+                            _modules[index] = ApplicationModule(
+                              academicLevel: value!,
+                              moduleName: module.moduleName,
                             );
                           });
                         },
                       ),
-
-                      const SizedBox(
-                          height: 18),
-
+                      const SizedBox(height: 18),
                       TextFormField(
-                        controller:
-                            TextEditingController(
-                          text: module
-                              .moduleName,
+                        controller: TextEditingController(
+                          text: module.moduleName,
                         ),
-
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Module Name / Code',
-
-                          hintText:
-                              'TPG316C',
-
-                          prefixIcon:
-                              Icon(
-                            Icons
-                                .book_outlined,
+                        decoration: const InputDecoration(
+                          labelText: 'Module Name / Code',
+                          hintText: 'TPG316C',
+                          prefixIcon: Icon(
+                            Icons.book_outlined,
                           ),
                         ),
-
-                        validator:
-                            (value) {
-                          if (value ==
-                                  null ||
-                              value
-                                  .trim()
-                                  .isEmpty) {
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Enter module name or code';
                           }
 
                           return null;
                         },
-
-                        onChanged:
-                            (value) {
-                          _modules[index] =
-                              ApplicationModule(
-                            academicLevel:
-                                _modules[index]
-                                    .academicLevel,
-
-                            moduleName:
-                                value
-                                    .trim(),
+                        onChanged: (value) {
+                          _modules[index] = ApplicationModule(
+                            academicLevel: _modules[index].academicLevel,
+                            moduleName: value.trim(),
                           );
                         },
                       ),
@@ -819,215 +570,121 @@ class _ApplicationFormScreenState
 
               if (_modules.length < 2)
                 OutlinedButton.icon(
-                  onPressed:
-                      _addModule,
-
-                  icon:
-                      const Icon(
+                  onPressed: _addModule,
+                  icon: const Icon(
                     Icons.add,
                   ),
-
-                  label:
-                      const Text(
+                  label: const Text(
                     'Add Second Module',
                   ),
                 ),
 
-              const SizedBox(
-                  height: 24),
+              const SizedBox(height: 24),
 
               // ELIGIBILITY
               Container(
-                padding:
-                    const EdgeInsets
-                        .all(20),
-
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.white,
-
-                  borderRadius:
-                      BorderRadius
-                          .circular(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(
                     20,
                   ),
                 ),
-
-                child:
-                    CheckboxListTile(
-                  value:
-                      _eligibilityConfirmed,
-
-                  onChanged:
-                      (value) {
+                child: CheckboxListTile(
+                  value: _eligibilityConfirmed,
+                  onChanged: (value) {
                     setState(() {
-                      _eligibilityConfirmed =
-                          value ??
-                              false;
+                      _eligibilityConfirmed = value ?? false;
                     });
                   },
-
-                  title:
-                      const Text(
+                  title: const Text(
                     'I confirm that I meet the minimum requirements.',
                   ),
-
-                  subtitle:
-                      const Text(
+                  subtitle: const Text(
                     'Final decisions remain with administrative users.',
                   ),
-
-                  controlAffinity:
-                      ListTileControlAffinity
-                          .leading,
-
-                  contentPadding:
-                      EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
                 ),
               ),
 
-              const SizedBox(
-                  height: 24),
+              const SizedBox(height: 24),
 
               // DOCUMENTS
               _buildDocumentCard(
                 title: 'ID Copy',
-                icon: Icons
-                    .badge_outlined,
-                document:
-                    _idDocument,
-                onPressed: () =>
-                    _pickFile(
-                        'id'),
+                icon: Icons.badge_outlined,
+                document: _idDocument,
+                onPressed: () => _pickFile('id'),
               ),
 
-              const SizedBox(
-                  height: 18),
+              const SizedBox(height: 18),
 
               _buildDocumentCard(
-                title:
-                    'Matric Results',
-                icon: Icons
-                    .school_outlined,
-                document:
-                    _matricDocument,
-                onPressed: () =>
-                    _pickFile(
-                        'matric'),
+                title: 'Matric Results',
+                icon: Icons.school_outlined,
+                document: _matricDocument,
+                onPressed: () => _pickFile('matric'),
               ),
 
-              const SizedBox(
-                  height: 18),
+              const SizedBox(height: 18),
 
               _buildDocumentCard(
-                title:
-                    'Academic Record',
-                icon: Icons
-                    .menu_book_outlined,
-                document:
-                    _academicRecord,
-                onPressed: () =>
-                    _pickFile(
-                        'academic'),
+                title: 'Academic Record',
+                icon: Icons.menu_book_outlined,
+                document: _academicRecord,
+                onPressed: () => _pickFile('academic'),
               ),
-              const SizedBox(
-    height: 18),
+              const SizedBox(height: 18),
 
-_buildDocumentCard(
-  title: 'Curriculum Vitae (CV)',
+              _buildDocumentCard(
+                title: 'Curriculum Vitae (CV)',
+                icon: Icons.description_outlined,
+                document: _cvDocument,
+                onPressed: () => _pickFile('cv'),
+              ),
 
-  icon:
-      Icons.description_outlined,
-
-  document:
-      _cvDocument,
-
-  onPressed: () =>
-      _pickFile('cv'),
-),
-
-              const SizedBox(
-                  height: 30),
+              const SizedBox(height: 30),
 
               // SUBMIT
               SizedBox(
-                width:
-                    double.infinity,
-
-                child:
-                    ElevatedButton
-                        .icon(
-                  onPressed:
-                      appVM.isLoading
-                          ? null
-                          : _saveApplication,
-
-                  style:
-                      ElevatedButton
-                          .styleFrom(
-                    backgroundColor:
-                        Colors
-                            .indigo,
-
-                    foregroundColor:
-                        Colors.white,
-
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      vertical:
-                          18,
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: appVM.isLoading ? null : _saveApplication,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 18,
                     ),
-
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius
-                              .circular(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
                         18,
                       ),
                     ),
                   ),
-
-                  icon: appVM
-                          .isLoading
+                  icon: appVM.isLoading
                       ? const SizedBox(
-                          width:
-                              18,
-                          height:
-                              18,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth:
-                                2,
-                            color:
-                                Colors
-                                    .white,
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
                         )
                       : const Icon(
-                          Icons
-                              .save,
+                          Icons.save,
                         ),
-
                   label: Text(
-                    widget
-                            .isEditing
-                        ? 'Save Changes'
-                        : 'Submit Application',
-
-                    style:
-                        const TextStyle(
-                      fontSize:
-                          16,
+                    widget.isEditing ? 'Save Changes' : 'Submit Application',
+                    style: const TextStyle(
+                      fontSize: 16,
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(
-                  height: 30),
+              const SizedBox(height: 30),
             ],
           ),
         ),

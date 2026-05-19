@@ -116,10 +116,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 30,
                     backgroundColor: Colors.white24,
-                    child: const Icon(
+                    child: Icon(
                       Icons.person,
                       color: Colors.white,
                       size: 30,
